@@ -1,62 +1,272 @@
 package com.example.pytorch
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
-import android.widget.TextView
+import android.provider.MediaStore
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.example.pytorch.network.ApiService
-import com.example.pytorch.network.PredictionResponse
+import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.*
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+
+import android.os.Handler
+import android.os.Looper
+import android.widget.TextView
+import com.example.pytorch.R
+import com.example.pytorch.databinding.ActivityMainBinding
 import com.example.pytorch.network.RetrofitClient
+import com.google.gson.JsonObject
+
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.io.File
+import java.io.FileOutputStream
+
+
+typealias LumaListener = (luma: Double) -> Unit
+
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var viewBinding: ActivityMainBinding
 
-    private lateinit var resultTextView: TextView
+    private var imageCapture: ImageCapture? = null
+    private var isContinuousCapturing = false
+
+    private var videoCapture: VideoCapture<Recorder>? = null
+    private var recording: Recording? = null
+
+    private lateinit var cameraExecutor: ExecutorService
+
+    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var timerTextView: TextView
+    private var countdownTime = 10
+    private var photoCount = 0 // 연속 촬영에서 찍힌 사진의 개수를 저장하는 변수
+
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        viewBinding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(viewBinding.root)
 
-        // Initialize views
-        resultTextView = findViewById(R.id.resultTextView)
+        timerTextView = findViewById(R.id.timerTextView)
+        viewBinding.uploadStatusTextView.text = "Ready to upload" // TextView 초기화
 
-        // Fetch result as soon as the activity is created
-        fetchResult()
+
+        // Request camera permissions
+        if (allPermissionsGranted()) {
+            startCamera()
+        } else {
+            ActivityCompat.requestPermissions(
+                this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+        }
+
+        // Set up the listeners for take photo and video capture buttons
+        viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
+        viewBinding.continuousCaptureButton.setOnClickListener { toggleContinuousCapture() }
+
+        cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
-    private fun fetchResult() {
-        val apiService = RetrofitClient.apiService
-        val call = apiService.getPrediction()
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<String>, grantResults:IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (allPermissionsGranted()) {
+                startCamera()
+            } else {
+                Toast.makeText(this,
+                    "Permissions not granted by the user.",
+                    Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }
+    }
 
-        call.enqueue(object : Callback<PredictionResponse> {
-            override fun onResponse(
-                call: Call<PredictionResponse>,
-                response: Response<PredictionResponse>
-            ) {
+    private fun takePhoto() {
+        val imageCapture = imageCapture ?: return
+
+        imageCapture.takePicture(
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(imageProxy: ImageProxy) {
+                    val bitmap = imageProxyToBitmap(imageProxy)
+                    imageProxy.close()
+                    uploadImage(bitmap)
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    Log.e(TAG, "Photo capture failed: ${exception.message}", exception)
+                }
+            }
+        )
+    }
+    private fun uploadImage(bitmap: Bitmap) {
+        // Bitmap을 File로 변환
+        val imageFile = File(filesDir, "photo.jpg")
+        val outputStream = FileOutputStream(imageFile)
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+        outputStream.flush()
+        outputStream.close()
+
+        // 서버로 파일 업로드
+        val requestBody = RequestBody.create("image/jpeg".toMediaTypeOrNull(), imageFile)
+        val body = MultipartBody.Part.createFormData("file", imageFile.name, requestBody)
+
+        val call = RetrofitClient.apiService.uploadImage(body)
+        viewBinding.uploadStatusTextView.text = "Uploading..."
+        call.enqueue(object : Callback<JsonObject> {
+            override fun onResponse(call: Call<JsonObject>, response: Response<JsonObject>) {
                 if (response.isSuccessful) {
-                    val prediction = response.body()?.prediction
-                    resultTextView.text = "Prediction: $prediction"
+                    val jsonResponse = response.body()
+                    val resultText = jsonResponse?.get("message")?.asString ?: "Upload successful!"
 
-                    // 결과를 ResultActivity로 전달
+                    // ResultActivity 시작
                     val intent = Intent(this@MainActivity, ResultActivity::class.java)
-                    intent.putExtra("RESULT", prediction)
+                    intent.putExtra("RESULT_TEXT", resultText)
                     startActivity(intent)
-                    finish() // 현재 액티비티 종료
+
+                    Toast.makeText(this@MainActivity, resultText, Toast.LENGTH_LONG).show()
+                    viewBinding.uploadStatusTextView.text = resultText
                 } else {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Error: ${response.message()}",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    val errorText = "Upload failed: ${response.errorBody()?.string()}"
+                    Toast.makeText(this@MainActivity, errorText, Toast.LENGTH_LONG).show()
+                    viewBinding.uploadStatusTextView.text = errorText
                 }
             }
 
-            override fun onFailure(call: Call<PredictionResponse>, t: Throwable) {
-                Toast.makeText(this@MainActivity, "Failure: ${t.message}", Toast.LENGTH_LONG).show()
+            override fun onFailure(call: Call<JsonObject>, t: Throwable) {
+                val errorMessage = "Upload error: ${t.message}"
+                Toast.makeText(this@MainActivity, errorMessage, Toast.LENGTH_LONG).show()
+                viewBinding.uploadStatusTextView.text = errorMessage
             }
         })
+    }
+
+
+
+
+
+    private fun imageProxyToBitmap(imageProxy: ImageProxy): Bitmap {
+        val buffer = imageProxy.planes[0].buffer
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    }
+
+    private fun getRealPathFromURI(uri: Uri): String {
+        var result = ""
+        val cursor = contentResolver.query(uri, null, null, null, null)
+        if (cursor != null && cursor.moveToFirst()) {
+            val index = cursor.getColumnIndex(MediaStore.Images.ImageColumns.DATA)
+            result = cursor.getString(index)
+            cursor.close()
+        }
+        return result
+    }
+
+    private fun toggleContinuousCapture() {
+        isContinuousCapturing = !isContinuousCapturing
+        if (isContinuousCapturing) {
+            countdownTime = 10
+            photoCount = 0 // 카운트 초기화
+            updateTimer()
+            Toast.makeText(this, "Continuous Capture Started", Toast.LENGTH_SHORT).show()
+            handler.postDelayed({startContinuousCapture()}, 10000)
+        } else {
+            Toast.makeText(this, "Continuous Capture Stopped", Toast.LENGTH_SHORT).show()
+            handler.removeCallbacksAndMessages(null)
+        }
+    }
+
+    private fun updateTimer() {
+        if (countdownTime > 0) {
+            timerTextView.text = countdownTime.toString()
+            countdownTime--
+            handler.postDelayed({ updateTimer() }, 1000)
+        } else {
+            timerTextView.text = ""
+        }
+    }
+
+    private fun captureVideo() {}
+
+    private fun startCamera() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+
+        cameraProviderFuture.addListener({
+            // Used to bind the lifecycle of cameras to the lifecycle owner
+            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+
+            // Preview
+            val preview = Preview.Builder()
+                .build()
+                .also {
+                    val viewFinder = null
+                    it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
+                }
+
+            imageCapture = ImageCapture.Builder().build()
+
+
+            // Select back camera as a default
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+            try {
+                // Unbind use cases before rebinding
+                cameraProvider.unbindAll()
+
+                // Bind use cases to camera
+                cameraProvider.bindToLifecycle(
+                    this, cameraSelector, preview, imageCapture)
+
+            } catch(exc: Exception) {
+                Log.e(TAG, "Use case binding failed", exc)
+            }
+
+        }, ContextCompat.getMainExecutor(this))
+    }
+    private fun startContinuousCapture() {
+        if (isContinuousCapturing && photoCount < 10) { // 10장 이하일 때만 촬영
+            takePhoto()
+            photoCount++
+            handler.postDelayed({ startContinuousCapture() }, 500)
+        } else {
+            isContinuousCapturing = false
+            Toast.makeText(this, "Continuous Capture Completed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(
+            baseContext, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraExecutor.shutdown()
+    }
+
+    companion object {
+        private const val TAG = "CameraXApp"
+        private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+        private const val REQUEST_CODE_PERMISSIONS = 10
+        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
     }
 }

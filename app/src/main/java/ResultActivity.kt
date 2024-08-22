@@ -4,8 +4,15 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.example.pytorch.R
+import com.example.pytorch.network.PredictionResponse
+import com.example.pytorch.network.RetrofitClient
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class ResultActivity : AppCompatActivity() {
 
@@ -19,11 +26,37 @@ class ResultActivity : AppCompatActivity() {
         resultTextView = findViewById(R.id.tvStatus)
         progressBar = findViewById(R.id.ProgressBar)
 
-        // Intent에서 결과를 받아오기
-        val result = intent.getStringExtra("RESULT")
-        Log.d("ResultActivity", "Received result: $result") // 로그 추가
-        resultTextView.text = "$result"
-        updateProgressBar(result)
+        // API 호출을 통해 결과를 직접 가져오기
+        fetchResult()
+    }
+
+    private fun fetchResult() {
+        val apiService = RetrofitClient.apiService
+        val call = apiService.getPrediction()
+
+        call.enqueue(object : Callback<PredictionResponse> {
+            override fun onResponse(
+                call: Call<PredictionResponse>,
+                response: Response<PredictionResponse>
+            ) {
+                if (response.isSuccessful) {
+                    val prediction = response.body()?.prediction
+                    Log.d("ResultActivity", "Received result: $prediction")
+                    resultTextView.text = prediction
+                    updateProgressBar(prediction)
+                } else {
+                    Toast.makeText(
+                        this@ResultActivity,
+                        "Error: ${response.message()}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+
+            override fun onFailure(call: Call<PredictionResponse>, t: Throwable) {
+                Toast.makeText(this@ResultActivity, "Failure: ${t.message}", Toast.LENGTH_LONG).show()
+            }
+        })
     }
 
     private fun updateProgressBar(result: String?) {
