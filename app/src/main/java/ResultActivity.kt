@@ -2,7 +2,6 @@ package com.example.pytorch
 
 import android.os.Bundle
 import android.util.Log
-import android.view.View
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -21,13 +20,13 @@ class ResultActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.ProgressBar)
 
         // Intent에서 결과를 받아오기
-        val result = intent.getStringExtra("RESULT") ?: "알 수 없음"
+        val result = intent.getStringExtra("RESULT")
         Log.d("ResultActivity", "Received result: $result") // 로그 추가
-        resultTextView.text = result
+        resultTextView.text = "상태: $result"
         updateProgressBar(result)
     }
 
-    private fun updateProgressBar(result: String) {
+    private fun updateProgressBar(result: String?) {
         Log.d("ResultActivity", "Updating ProgressBar with result: $result")
 
         progressBar.isIndeterminate = false
@@ -59,7 +58,5 @@ class ResultActivity : AppCompatActivity() {
                     ContextCompat.getColorStateList(this, android.R.color.darker_gray)
             }
         }
-        progressBar.invalidate()
-
     }
 }

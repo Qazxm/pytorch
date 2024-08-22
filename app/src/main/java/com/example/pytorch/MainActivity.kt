@@ -2,60 +2,65 @@ package com.example.pytorch
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
-import android.webkit.JavascriptInterface
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.widget.Button
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.pytorch.network.ApiService
+import com.example.pytorch.network.PredictionResponse
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var webView: WebView
+    private lateinit var resultTextView: TextView
+    private lateinit var fetchResultButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.webview) // 웹뷰가 있는 레이아웃
+        setContentView(R.layout.activity_main)
 
-        webView = findViewById(R.id.webView)
+        // Initialize views
+        resultTextView = findViewById(R.id.resultTextView)
+        fetchResultButton = findViewById(R.id.fetchResultButton)
 
-        // WebView 설정
-        webView.settings.javaScriptEnabled = true
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
-                super.onPageFinished(view, url)
-                // 페이지 로드 완료 후 자동으로 결과를 처리
-                view.evaluateJavascript(
-                    "(function() { return document.getElementById('result').innerText; })();"
-                ) { result ->
-                    Log.d("MainActivity", "Evaluated JavaScript result: $result")
-                    if (result.isNotEmpty()) {
-                        processResult(result.trim('"')) // 결과에서 불필요한 따옴표 제거
-                    }
+        // Set up button click listener
+        fetchResultButton.setOnClickListener {
+            fetchResult()
+        }
+    }
+
+    private fun fetchResult() {
+        val apiService = RetrofitClient.retrofit.create(ApiService::class.java)
+        val call = apiService.getPrediction()
+
+        call.enqueue(object : Callback<PredictionResponse> {
+            override fun onResponse(
+                call: Call<PredictionResponse>,
+                response: Response<PredictionResponse>
+            ) {
+                if (response.isSuccessful) {
+                    val prediction = response.body()?.prediction
+                    resultTextView.text = "Prediction: $prediction"
+
+                    // 결과를 ResultActivity로 전달
+                    val intent = Intent(this@MainActivity, ResultActivity::class.java)
+                    intent.putExtra("RESULT", prediction)
+                    startActivity(intent)
+                    finish() // 현재 액티비티 종료
+                } else {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Error: ${response.message()}",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
-        }
 
-        // JavaScript Interface 설정
-        webView.addJavascriptInterface(JavaScriptInterface(), "AndroidInterface")
-
-        // 웹 페이지 로드
-        webView.loadUrl("http://192.168.123.111:8000/") // 로컬 IP 주소와 포트
-    }
-
-    private fun processResult(result: String) {
-        Log.d("MainActivity", "Processing result: $result") // 로그 추가
-        val intent = Intent(this, ResultActivity::class.java)
-        intent.putExtra("RESULT", result)
-        startActivity(intent)
-        finish() // 현재 액티비티 종료
-    }
-
-    // JavaScript Interface 클래스 정의
-    private inner class JavaScriptInterface {
-        @JavascriptInterface
-        fun showResult(result: String) {
-            Log.d("MainActivity", "JavaScript Interface received result: $result")
-            processResult(result)
-        }
+            override fun onFailure(call: Call<PredictionResponse>, t: Throwable) {
+                Toast.makeText(this@MainActivity, "Failure: ${t.message}", Toast.LENGTH_LONG).show()
+            }
+        })
     }
 }
