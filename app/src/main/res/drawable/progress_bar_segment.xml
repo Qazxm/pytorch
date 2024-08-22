@@ -1,0 +1,12 @@
+<!-- res/drawable/progress_bar_segment.xml -->
+<rotate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:fromDegrees="0"
+    android:toDegrees="360">
+    <shape android:shape="rectangle">
+        <gradient
+            android:startColor="@android:color/holo_green_dark"
+            android:endColor="@android:color/holo_green_dark"
+            android:angle="0"
+            android:type="linear" />
+    </shape>
+</rotate>

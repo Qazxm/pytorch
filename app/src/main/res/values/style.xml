@@ -1,0 +1,8 @@
+<!-- res/values/styles.xml -->
+<resources>
+    <!-- Custom style for ProgressBar -->
+    <style name="CustomProgressBarStyle" parent="Widget.AppCompat.ProgressBar">
+        <item name="android:indeterminate">false</item>
+        <item name="android:progressDrawable">@drawable/progress_bar_circle</item>
+    </style>
+</resources>
