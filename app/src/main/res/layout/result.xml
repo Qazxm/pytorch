@@ -35,12 +35,14 @@
 
             <ProgressBar
                 android:id="@+id/ProgressBar"
-                android:layout_marginTop="200dp"
+                android:layout_marginTop="150dp"
+                android:layout_marginLeft="30dp"
+                android:layout_marginRight="30dp"
                 android:layout_width="400dp"
-                android:layout_height="20dp"
+                android:layout_height="30dp"
                 android:progress="0"
                 android:max="100"
-                android:progressBackgroundTint="@android:color/darker_gray"
+                android:progressBackgroundTint="@android:color/white"
                 android:progressTint="@color/healthy_green"
                 android:indeterminate="false"
                 style="@android:style/Widget.ProgressBar.Horizontal" />
@@ -55,21 +57,10 @@
                 android:layout_below="@id/ProgressBar"
                 android:layout_centerHorizontal="true"
                 android:layout_marginTop="16dp"
-                android:text="상태: 보통"
+                android:text="보통"
                 android:textColor="@android:color/darker_gray"
                 android:textSize="25sp" />
 
-            <!-- 수치 텍스트 -->
-            <TextView
-                android:id="@+id/tvVaule"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@id/tvStatus"
-                android:layout_marginTop="8dp"
-                android:layout_centerHorizontal="true"
-                android:text="수치: 50"
-                android:textSize="25sp"
-                android:textColor="@android:color/darker_gray" />
         </RelativeLayout>
     </androidx.cardview.widget.CardView>
 

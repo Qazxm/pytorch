@@ -22,7 +22,7 @@ class ResultActivity : AppCompatActivity() {
         // Intent에서 결과를 받아오기
         val result = intent.getStringExtra("RESULT")
         Log.d("ResultActivity", "Received result: $result") // 로그 추가
-        resultTextView.text = "상태: $result"
+        resultTextView.text = "$result"
         updateProgressBar(result)
     }
 
@@ -40,7 +40,7 @@ class ResultActivity : AppCompatActivity() {
             "safe" -> {
                 progressBar.progress = 100
                 progressBar.progressTintList =
-                    ContextCompat.getColorStateList(this, R.color.healthy_green)
+                    ContextCompat.getColorStateList(this, R.color.safe_green)
             }
             "error" -> {
                 progressBar.progress = 100

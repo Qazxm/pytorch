@@ -2,12 +2,12 @@ package com.example.pytorch
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.pytorch.network.ApiService
 import com.example.pytorch.network.PredictionResponse
+import com.example.pytorch.network.RetrofitClient
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -15,7 +15,6 @@ import retrofit2.Response
 class MainActivity : AppCompatActivity() {
 
     private lateinit var resultTextView: TextView
-    private lateinit var fetchResultButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,16 +22,13 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize views
         resultTextView = findViewById(R.id.resultTextView)
-        fetchResultButton = findViewById(R.id.fetchResultButton)
 
-        // Set up button click listener
-        fetchResultButton.setOnClickListener {
-            fetchResult()
-        }
+        // Fetch result as soon as the activity is created
+        fetchResult()
     }
 
     private fun fetchResult() {
-        val apiService = RetrofitClient.retrofit.create(ApiService::class.java)
+        val apiService = RetrofitClient.apiService
         val call = apiService.getPrediction()
 
         call.enqueue(object : Callback<PredictionResponse> {
