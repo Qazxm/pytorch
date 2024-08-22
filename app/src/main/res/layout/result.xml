@@ -39,10 +39,10 @@
                 android:layout_marginLeft="30dp"
                 android:layout_marginRight="30dp"
                 android:layout_width="400dp"
-                android:layout_height="30dp"
+                android:layout_height="40dp"
                 android:progress="0"
                 android:max="100"
-                android:progressBackgroundTint="@android:color/white"
+                android:progressBackgroundTint="@color/light_gray"
                 android:progressTint="@color/healthy_green"
                 android:indeterminate="false"
                 style="@android:style/Widget.ProgressBar.Horizontal" />
@@ -57,9 +57,9 @@
                 android:layout_below="@id/ProgressBar"
                 android:layout_centerHorizontal="true"
                 android:layout_marginTop="16dp"
-                android:text="보통"
-                android:textColor="@android:color/darker_gray"
-                android:textSize="25sp" />
+                android:text="\n보통"
+                android:textColor="@color/dark_gray"
+                android:textSize="70sp" />
 
         </RelativeLayout>
     </androidx.cardview.widget.CardView>
